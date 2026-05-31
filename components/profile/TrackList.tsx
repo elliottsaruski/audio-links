@@ -26,7 +26,6 @@ export default function TrackList({ tracks }: { tracks: Track[] }) {
             </CardContent>
             <CardFooter className="gap-2 w-full justify-between">
               <Badge>{track.genre}</Badge>
-              {/* <p>{track.plays}</p> */}
               <p>{track.createdAt}</p>
             </CardFooter>
           </Card>
