@@ -40,24 +40,14 @@ export default function ProfilePage({}) {
           </Badge>
         </div>
       </CardHeader>
-      {/* <CardContent>
-        <p>
-          {profile.followers} followers · {profile.following} following
-        </p>
-      </CardContent> */}
       <CardContent className="bg-blue-50">
-        <WaveformPlayer track={profile.tracks[0]} />;
+        <WaveformPlayer track={profile.tracks[0]} />
       </CardContent>
       <CardContent className="flex flex-col gap-5 py-5">
         <TrackList tracks={profile.tracks} />
       </CardContent>
       <CardFooter>
-        <p>
-          {profile.tracks.length} tracks
-          {/* · */}
-          {/* {profile.totalPlays.toLocaleString()}{" "} */}
-          {/* plays */}
-        </p>
+        <p>{profile.tracks.length} tracks</p>
       </CardFooter>
     </Card>
   );
