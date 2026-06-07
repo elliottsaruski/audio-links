@@ -1,9 +1,10 @@
-export default function ProfileBanner({ bannerUrl }: { bannerUrl: string }) {
+export default function ProfileBanner({ url }: { url: string | null }) {
+  if (!url) return null
   return (
     <img
-      src={bannerUrl}
-      alt="Banner Image"
+      src={url}
+      alt="Profile background"
       className="relative z-20 aspect-video w-full object-cover"
     />
-  );
+  )
 }
