@@ -1,54 +1,39 @@
-import { mockProfile } from "@/lib/mock-data";
+import { notFound } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
+import ProfilePage from '@/components/profile/ProfilePage'
 
-import ProfileAvatar from "@/components/profile/ProfileAvatar";
-import ProfileBanner from "@/components/profile/ProfileBanner";
-import WaveformPlayer from "@/components/player/WaveformPlayer";
-import TrackList from "@/components/profile/TrackList";
+interface Props {
+  params: Promise<{ username: string }>
+}
 
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardDescription,
-  CardFooter,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+export default async function PublicProfilePage({ params }: Props) {
+  const { username } = await params
+  const supabase = await createClient()
 
-import { Globe, Share } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('handle', username)
+    .single()
 
-export default function ProfilePage({}) {
-  const profile = mockProfile;
+  if (!profile) notFound()
+
+  const [tracksRes, linksRes, releasesRes] = await Promise.all([
+    supabase.from('tracks').select('*').eq('user_id', profile.user_id).order('sort_order'),
+    supabase.from('links').select('*').eq('user_id', profile.user_id).order('sort_order'),
+    supabase
+      .from('upcoming_releases')
+      .select('*')
+      .eq('user_id', profile.user_id)
+      .order('release_date'),
+  ])
 
   return (
-    <Card className="relative m-auto w-full max-w-lg pt-0 my-10 gap-0">
-      <ProfileBanner bannerUrl={profile.bannerUrl} />
-      <CardHeader className="gap-2 py-5">
-        <div className="flex items-center gap-2">
-          <ProfileAvatar avatarUrl={profile.avatarUrl} />
-          <CardTitle className="text-lg">{profile.displayName}</CardTitle>
-        </div>
-        <CardDescription>{profile.bio}</CardDescription>
-        <CardAction>
-          <Share />
-        </CardAction>
-        <div className="flex items-end gap-2">
-          <Badge>
-            <Globe />
-            <p>{profile.location}</p>
-          </Badge>
-        </div>
-      </CardHeader>
-      <CardContent className="bg-blue-50">
-        <WaveformPlayer track={profile.tracks[0]} />
-      </CardContent>
-      <CardContent className="flex flex-col gap-5 py-5">
-        <TrackList tracks={profile.tracks} />
-      </CardContent>
-      <CardFooter>
-        <p>{profile.tracks.length} tracks</p>
-      </CardFooter>
-    </Card>
-  );
+    <ProfilePage
+      profile={profile}
+      tracks={tracksRes.data ?? []}
+      links={linksRes.data ?? []}
+      releases={releasesRes.data ?? []}
+    />
+  )
 }
