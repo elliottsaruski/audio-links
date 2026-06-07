@@ -1,27 +1,28 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import Dashboard from '@/components/dashboard/Dashboard'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-
   if (!user) redirect('/auth/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('user_id', user.id)
-    .single()
+  const [profileRes, tracksRes, linksRes, releasesRes] = await Promise.all([
+    supabase.from('profiles').select('*').eq('user_id', user.id).single(),
+    supabase.from('tracks').select('*').eq('user_id', user.id).order('sort_order'),
+    supabase.from('links').select('*').eq('user_id', user.id).order('sort_order'),
+    supabase.from('upcoming_releases').select('*').eq('user_id', user.id).order('release_date'),
+  ])
 
-  if (!profile) redirect('/onboarding')
+  if (!profileRes.data) redirect('/onboarding')
 
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center">
-      <div className="text-center space-y-2">
-        <p className="text-zinc-400 text-sm">Logged in as</p>
-        <p className="text-xl font-semibold">/{profile.handle}</p>
-        <p className="text-zinc-500 text-sm">Dashboard coming soon</p>
-      </div>
-    </div>
+    <Dashboard
+      profile={profileRes.data}
+      tracks={tracksRes.data ?? []}
+      links={linksRes.data ?? []}
+      releases={releasesRes.data ?? []}
+      userId={user.id}
+    />
   )
 }
