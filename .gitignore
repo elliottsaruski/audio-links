@@ -37,6 +37,9 @@ yarn-error.log*
 # AI tooling
 .agents/
 skills-lock.json
+CLAUDE_HANDOFF_SPRINT2.md
+CLAUDE_HANDOFF.md
+
 
 # vercel
 .vercel
@@ -44,8 +47,9 @@ skills-lock.json
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-app/audio-links.code-workspace
-CLAUDE_HANDOFF.md
 
-#supabase
+# VSCode
+app/audio-links.code-workspace
+
+# supabase
 supabase/.temp/
