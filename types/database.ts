@@ -40,37 +40,52 @@ export type Database = {
       }
       profiles: {
         Row: {
+          accent_color: string | null
           avatar_url: string | null
           background_url: string | null
           bio: string | null
+          card_color: string | null
           created_at: string | null
           display_name: string | null
           handle: string
           id: string
+          location: string | null
+          text_color: string | null
           theme: string | null
           user_id: string
+          wrapper_color: string | null
         }
         Insert: {
+          accent_color?: string | null
           avatar_url?: string | null
           background_url?: string | null
           bio?: string | null
+          card_color?: string | null
           created_at?: string | null
           display_name?: string | null
           handle: string
           id?: string
+          location?: string | null
+          text_color?: string | null
           theme?: string | null
           user_id: string
+          wrapper_color?: string | null
         }
         Update: {
+          accent_color?: string | null
           avatar_url?: string | null
           background_url?: string | null
           bio?: string | null
+          card_color?: string | null
           created_at?: string | null
           display_name?: string | null
           handle?: string
           id?: string
+          location?: string | null
+          text_color?: string | null
           theme?: string | null
           user_id?: string
+          wrapper_color?: string | null
         }
         Relationships: []
       }
@@ -80,11 +95,14 @@ export type Database = {
           audio_url: string | null
           cover_url: string | null
           created_at: string | null
+          description: string | null
+          has_audio: boolean | null
           id: string
           is_pinned: boolean | null
           release_date: string | null
           sort_order: number | null
           title: string
+          track_links: Json | null
           user_id: string
           waveform_peaks: Json | null
         }
@@ -93,11 +111,14 @@ export type Database = {
           audio_url?: string | null
           cover_url?: string | null
           created_at?: string | null
+          description?: string | null
+          has_audio?: boolean | null
           id?: string
           is_pinned?: boolean | null
           release_date?: string | null
           sort_order?: number | null
           title: string
+          track_links?: Json | null
           user_id: string
           waveform_peaks?: Json | null
         }
@@ -106,11 +127,14 @@ export type Database = {
           audio_url?: string | null
           cover_url?: string | null
           created_at?: string | null
+          description?: string | null
+          has_audio?: boolean | null
           id?: string
           is_pinned?: boolean | null
           release_date?: string | null
           sort_order?: number | null
           title?: string
+          track_links?: Json | null
           user_id?: string
           waveform_peaks?: Json | null
         }

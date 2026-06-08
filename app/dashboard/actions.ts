@@ -16,6 +16,12 @@ export async function updateProfile(data: {
   bio?: string | null
   avatar_url?: string | null
   background_url?: string | null
+  location?: string | null
+  theme?: string | null
+  accent_color?: string | null
+  card_color?: string | null
+  text_color?: string | null
+  wrapper_color?: string | null
 }): Promise<{ error?: string }> {
   const { supabase, user } = await getUser()
   if (!user) return { error: 'Not authenticated.' }
@@ -32,9 +38,13 @@ export async function updateProfile(data: {
 export async function addTrack(data: {
   title: string
   artist?: string | null
-  audio_url: string
+  has_audio?: boolean
+  audio_url?: string | null
   cover_url?: string | null
   waveform_peaks?: unknown
+  description?: string | null
+  track_links?: unknown
+  is_pinned?: boolean
 }): Promise<{ error?: string }> {
   const { supabase, user } = await getUser()
   if (!user) return { error: 'Not authenticated.' }
@@ -88,6 +98,47 @@ export async function setPinnedTrack(id: string | null): Promise<{ error?: strin
 
     if (pinErr) return { error: pinErr.message }
   }
+
+  revalidatePath('/dashboard')
+  return {}
+}
+
+export async function updateTrack(
+  id: string,
+  data: {
+    title?: string
+    artist?: string | null
+    has_audio?: boolean
+    audio_url?: string | null
+    cover_url?: string | null
+    waveform_peaks?: unknown
+    description?: string | null
+    track_links?: unknown
+    is_pinned?: boolean
+  }
+): Promise<{ error?: string }> {
+  const { supabase, user } = await getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { error } = await supabase.from('tracks').update(data).eq('id', id).eq('user_id', user.id)
+  if (error) return { error: error.message }
+
+  revalidatePath('/dashboard')
+  return {}
+}
+
+export async function reorderTracks(ids: string[]): Promise<{ error?: string }> {
+  const { supabase, user } = await getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const results = await Promise.all(
+    ids.map((id, index) =>
+      supabase.from('tracks').update({ sort_order: index }).eq('id', id).eq('user_id', user.id)
+    )
+  )
+
+  const failed = results.find(r => r.error)
+  if (failed?.error) return { error: failed.error.message }
 
   revalidatePath('/dashboard')
   return {}
