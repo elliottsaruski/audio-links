@@ -1,66 +1,48 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRef } from 'react'
 import Image from 'next/image'
-import { Tables } from '@/types/database'
-import { updateProfile } from '@/app/dashboard/actions'
+import { useDashboardStore } from '@/lib/dashboard-store'
 import { uploadFile } from '@/lib/upload'
-import { Button } from '@/components/ui/button'
+import { useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 
-type Profile = Tables<'profiles'>
+const BIO_MAX = 150
 
-export default function ProfileTab({ profile, userId }: { profile: Profile; userId: string }) {
-  const router = useRouter()
-  const [displayName, setDisplayName] = useState(profile.display_name ?? '')
-  const [bio, setBio] = useState(profile.bio ?? '')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export default function ProfileTab({ userId }: { userId: string }) {
+  const displayName = useDashboardStore(s => s.display_name)
+  const bio = useDashboardStore(s => s.bio)
+  const avatarUrl = useDashboardStore(s => s.avatar_url)
+  const bgUrl = useDashboardStore(s => s.background_url)
+  const location = useDashboardStore(s => s.location)
+  const theme = useDashboardStore(s => s.theme)
 
-  const [avatarUrl, setAvatarUrl] = useState(profile.avatar_url)
-  const [bgUrl, setBgUrl] = useState(profile.background_url)
+  const setDisplayName = useDashboardStore(s => s.setDisplayName)
+  const setBio = useDashboardStore(s => s.setBio)
+  const setAvatarUrl = useDashboardStore(s => s.setAvatarUrl)
+  const setBackgroundUrl = useDashboardStore(s => s.setBackgroundUrl)
+  const setLocation = useDashboardStore(s => s.setLocation)
+  const setTheme = useDashboardStore(s => s.setTheme)
+
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [uploadingBg, setUploadingBg] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   const avatarInputRef = useRef<HTMLInputElement>(null)
   const bgInputRef = useRef<HTMLInputElement>(null)
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault()
-    setSaving(true)
-    setError(null)
-
-    const { error } = await updateProfile({
-      display_name: displayName || null,
-      bio: bio || null,
-    })
-
-    setSaving(false)
-    if (error) {
-      setError(error)
-    } else {
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
-      router.refresh()
-    }
-  }
 
   async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadingAvatar(true)
+    setUploadError(null)
     try {
       const url = await uploadFile('avatars', userId, file)
-      const { error } = await updateProfile({ avatar_url: url })
-      if (error) throw new Error(error)
       setAvatarUrl(url)
-      router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Avatar upload failed')
+      setUploadError(err instanceof Error ? err.message : 'Avatar upload failed')
     } finally {
       setUploadingAvatar(false)
     }
@@ -70,21 +52,19 @@ export default function ProfileTab({ profile, userId }: { profile: Profile; user
     const file = e.target.files?.[0]
     if (!file) return
     setUploadingBg(true)
+    setUploadError(null)
     try {
       const url = await uploadFile('backgrounds', userId, file)
-      const { error } = await updateProfile({ background_url: url })
-      if (error) throw new Error(error)
-      setBgUrl(url)
-      router.refresh()
+      setBackgroundUrl(url)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Background upload failed')
+      setUploadError(err instanceof Error ? err.message : 'Background upload failed')
     } finally {
       setUploadingBg(false)
     }
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Avatar */}
       <div className="space-y-2">
         <Label className="text-zinc-300">Avatar</Label>
@@ -93,14 +73,12 @@ export default function ProfileTab({ profile, userId }: { profile: Profile; user
             type="button"
             onClick={() => avatarInputRef.current?.click()}
             disabled={uploadingAvatar}
-            className="relative w-16 h-16 rounded-full bg-zinc-800 overflow-hidden hover:opacity-80 transition flex-shrink-0"
+            className="relative w-16 h-16 rounded-full bg-zinc-800 overflow-hidden hover:opacity-80 transition shrink-0"
           >
             {avatarUrl ? (
               <Image src={avatarUrl} alt="Avatar" fill className="object-cover" />
             ) : (
-              <span className="text-2xl absolute inset-0 flex items-center justify-center text-zinc-500">
-                +
-              </span>
+              <span className="absolute inset-0 flex items-center justify-center text-zinc-500 text-xl">+</span>
             )}
           </button>
           <span className="text-xs text-zinc-500">
@@ -119,9 +97,10 @@ export default function ProfileTab({ profile, userId }: { profile: Profile; user
       {/* Background */}
       <div className="space-y-2">
         <Label className="text-zinc-300">Background image</Label>
-        <div
-          className="relative w-full h-24 rounded-lg bg-zinc-800 overflow-hidden cursor-pointer hover:opacity-80 transition"
+        <button
+          type="button"
           onClick={() => bgInputRef.current?.click()}
+          className="relative w-full h-20 rounded-lg bg-zinc-800 overflow-hidden hover:opacity-80 transition block"
         >
           {bgUrl ? (
             <Image src={bgUrl} alt="Background" fill className="object-cover" />
@@ -130,7 +109,7 @@ export default function ProfileTab({ profile, userId }: { profile: Profile; user
               {uploadingBg ? 'Uploading…' : '+ Add background'}
             </span>
           )}
-        </div>
+        </button>
         <input
           ref={bgInputRef}
           type="file"
@@ -140,8 +119,10 @@ export default function ProfileTab({ profile, userId }: { profile: Profile; user
         />
       </div>
 
+      {uploadError && <p className="text-sm text-red-400">{uploadError}</p>}
+
       {/* Text fields */}
-      <form onSubmit={handleSave} className="space-y-4">
+      <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="display_name" className="text-zinc-300">Display name</Label>
           <Input
@@ -154,23 +135,56 @@ export default function ProfileTab({ profile, userId }: { profile: Profile; user
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="bio" className="text-zinc-300">Bio</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="bio" className="text-zinc-300">Bio</Label>
+            <span className={`text-xs ${bio.length > BIO_MAX ? 'text-red-400' : 'text-zinc-500'}`}>
+              {bio.length} / {BIO_MAX}
+            </span>
+          </div>
           <Textarea
             id="bio"
             value={bio}
-            onChange={e => setBio(e.target.value)}
+            onChange={e => {
+              if (e.target.value.length <= BIO_MAX) setBio(e.target.value)
+            }}
             placeholder="Tell people about yourself…"
-            rows={4}
+            rows={3}
+            maxLength={BIO_MAX}
             className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500 resize-none"
           />
         </div>
 
-        {error && <p className="text-sm text-red-400">{error}</p>}
+        <div className="space-y-2">
+          <Label htmlFor="location" className="text-zinc-300">Location</Label>
+          <Input
+            id="location"
+            value={location ?? ''}
+            onChange={e => setLocation(e.target.value || null)}
+            placeholder="Miami, FL"
+            className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
+          />
+        </div>
 
-        <Button type="submit" disabled={saving} className="w-full">
-          {saving ? 'Saving…' : saved ? 'Saved!' : 'Save profile'}
-        </Button>
-      </form>
+        <div className="space-y-2">
+          <Label className="text-zinc-300">Theme</Label>
+          <div className="flex gap-2">
+            {(['dark', 'light'] as const).map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTheme(t)}
+                className={`px-4 py-1.5 rounded-lg text-sm border transition ${
+                  theme === t
+                    ? 'border-white text-white bg-zinc-800'
+                    : 'border-zinc-700 text-zinc-400 hover:border-zinc-500'
+                }`}
+              >
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -3,23 +3,20 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
-import { Tables } from '@/types/database'
+import { useDashboardStore } from '@/lib/dashboard-store'
 import { addRelease, updateRelease, deleteRelease } from '@/app/dashboard/actions'
 import { uploadFile } from '@/lib/upload'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Tables } from '@/types/database'
 
 type Release = Tables<'upcoming_releases'>
 
-export default function ReleasesTab({
-  releases,
-  userId,
-}: {
-  releases: Release[]
-  userId: string
-}) {
+export default function ReleasesTab({ userId }: { userId: string }) {
   const router = useRouter()
+  const releases = useDashboardStore(s => s.releases)
+
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editTitle, setEditTitle] = useState('')
   const [editDate, setEditDate] = useState('')
@@ -30,6 +27,9 @@ export default function ReleasesTab({
   const [newCoverFile, setNewCoverFile] = useState<File | null>(null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const [deleteTarget, setDeleteTarget] = useState<Release | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   async function handleAdd(e: React.FormEvent) {
     e.preventDefault()
@@ -87,10 +87,16 @@ export default function ReleasesTab({
     }
   }
 
-  async function handleDelete(id: string) {
-    const { error } = await deleteRelease(id)
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    const { error } = await deleteRelease(deleteTarget.id)
+    setDeleting(false)
     if (error) setError(error)
-    else router.refresh()
+    else {
+      setDeleteTarget(null)
+      router.refresh()
+    }
   }
 
   return (
@@ -125,12 +131,7 @@ export default function ReleasesTab({
                 <Button size="sm" onClick={() => handleSaveEdit(release.id)} disabled={saving}>
                   Save
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setEditingId(null)}
-                  className="text-zinc-400"
-                >
+                <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} className="text-zinc-400">
                   Cancel
                 </Button>
               </div>
@@ -141,19 +142,11 @@ export default function ReleasesTab({
               className="flex items-center gap-3 p-3 rounded-lg bg-zinc-900 border border-zinc-800"
             >
               {release.cover_url ? (
-                <div className="w-10 h-10 rounded bg-zinc-800 flex-shrink-0 overflow-hidden">
-                  <Image
-                    src={release.cover_url}
-                    alt={release.title}
-                    width={40}
-                    height={40}
-                    className="object-cover w-full h-full"
-                  />
+                <div className="w-10 h-10 rounded bg-zinc-800 shrink-0 overflow-hidden">
+                  <Image src={release.cover_url} alt={release.title} width={40} height={40} className="object-cover w-full h-full" />
                 </div>
               ) : (
-                <div className="w-10 h-10 rounded bg-zinc-800 flex-shrink-0 flex items-center justify-center text-zinc-600 text-xs">
-                  ♪
-                </div>
+                <div className="w-10 h-10 rounded bg-zinc-800 shrink-0 flex items-center justify-center text-zinc-600 text-xs">♪</div>
               )}
 
               <div className="flex-1 min-w-0">
@@ -164,16 +157,10 @@ export default function ReleasesTab({
               </div>
 
               <div className="flex items-center gap-1">
-                <button
-                  onClick={() => startEdit(release)}
-                  className="p-1.5 text-xs text-zinc-500 hover:text-zinc-200 transition"
-                >
+                <button onClick={() => startEdit(release)} className="p-1.5 text-xs text-zinc-500 hover:text-zinc-200 transition">
                   Edit
                 </button>
-                <button
-                  onClick={() => handleDelete(release.id)}
-                  className="p-1.5 text-xs text-zinc-600 hover:text-red-400 transition"
-                >
+                <button onClick={() => setDeleteTarget(release)} className="p-1.5 text-xs text-zinc-600 hover:text-red-400 transition">
                   ✕
                 </button>
               </div>
@@ -224,10 +211,28 @@ export default function ReleasesTab({
             className="block w-full text-sm text-zinc-400 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-xs file:bg-zinc-700 file:text-zinc-300 hover:file:bg-zinc-600"
           />
         </div>
-        <Button type="submit" size="sm" disabled={saving} className="w-full">
+        <Button type="submit" size="sm" disabled={saving}>
           {saving ? 'Saving…' : 'Add release'}
         </Button>
       </form>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full mx-4 space-y-4">
+            <p className="text-white font-medium">Delete &ldquo;{deleteTarget.title}&rdquo;?</p>
+            <p className="text-sm text-zinc-400">This can&apos;t be undone.</p>
+            <div className="flex gap-3">
+              <Button size="sm" variant="ghost" onClick={() => setDeleteTarget(null)} className="text-zinc-400">
+                Cancel
+              </Button>
+              <Button size="sm" variant="destructive" onClick={handleDelete} disabled={deleting}>
+                {deleting ? 'Deleting…' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

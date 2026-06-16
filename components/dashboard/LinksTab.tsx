@@ -1,203 +1,153 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { Tables } from '@/types/database'
-import { addLink, updateLink, deleteLink, reorderLinks } from '@/app/dashboard/actions'
+import { useDashboardStore } from '@/lib/dashboard-store'
+import { saveLinks } from '@/app/dashboard/actions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 
-type LinkRow = Tables<'links'>
+const PLATFORMS = [
+  { id: 'spotify', label: 'Spotify' },
+  { id: 'apple_music', label: 'Apple Music' },
+  { id: 'soundcloud', label: 'SoundCloud' },
+  { id: 'youtube', label: 'YouTube' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'tiktok', label: 'TikTok' },
+  { id: 'twitter', label: 'Twitter / X' },
+  { id: 'facebook', label: 'Facebook' },
+  { id: 'bandcamp', label: 'Bandcamp' },
+  { id: 'website', label: 'Website' },
+] as const
 
-export default function LinksTab({ links: initialLinks }: { links: LinkRow[] }) {
+type PlatformId = typeof PLATFORMS[number]['id']
+
+export default function LinksTab() {
   const router = useRouter()
-  const [links, setLinks] = useState(initialLinks)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState('')
-  const [editUrl, setEditUrl] = useState('')
-  const [newTitle, setNewTitle] = useState('')
-  const [newUrl, setNewUrl] = useState('')
+  const links = useDashboardStore(s => s.links)
+
+  // Local URL map: platformId → url
+  const [urls, setUrls] = useState<Record<string, string>>({})
+  const [order, setOrder] = useState<PlatformId[]>(PLATFORMS.map(p => p.id))
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [saved, setSaved] = useState(false)
 
-  async function handleAdd(e: React.FormEvent) {
+  const dragId = useRef<PlatformId | null>(null)
+
+  // Sync local draft state from external store when links change.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(function syncFromStore() {
+    const map: Record<string, string> = {}
+    links.forEach(l => { map[l.title] = l.url })
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setUrls(map)
+
+    // Put platforms with URLs first in the order, respecting sort_order
+    const withUrl = [...links]
+      .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+      .map(l => l.title as PlatformId)
+      .filter(id => PLATFORMS.some(p => p.id === id))
+
+    const rest = PLATFORMS.map(p => p.id).filter(id => !withUrl.includes(id))
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setOrder([...withUrl, ...rest])
+  }, [links])
+
+  function setUrl(id: string, url: string) {
+    setUrls(prev => ({ ...prev, [id]: url }))
+  }
+
+  // Drag to reorder (only meaningful for filled platforms)
+  function onDragStart(id: PlatformId) {
+    dragId.current = id
+  }
+
+  function onDragOver(e: React.DragEvent, targetId: PlatformId) {
     e.preventDefault()
-    if (!newTitle.trim() || !newUrl.trim()) return
+    if (!dragId.current || dragId.current === targetId) return
+    const from = order.indexOf(dragId.current)
+    const to = order.indexOf(targetId)
+    if (from === -1 || to === -1) return
+    const next = [...order]
+    next.splice(from, 1)
+    next.splice(to, 0, dragId.current)
+    setOrder(next)
+  }
+
+  function onDrop() {
+    dragId.current = null
+  }
+
+  async function handleSave() {
     setSaving(true)
     setError(null)
 
-    const { error } = await addLink({
-      title: newTitle.trim(),
-      url: newUrl.trim(),
-      sort_order: links.length,
-    })
+    const filled = order
+      .filter(id => urls[id]?.trim())
+      .map((id, i) => ({ platform: id, url: urls[id]!.trim(), sort_order: i }))
 
+    const { error } = await saveLinks(filled)
     setSaving(false)
+
     if (error) {
       setError(error)
     } else {
-      setNewTitle('')
-      setNewUrl('')
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
       router.refresh()
     }
-  }
-
-  function startEdit(link: LinkRow) {
-    setEditingId(link.id)
-    setEditTitle(link.title)
-    setEditUrl(link.url)
-  }
-
-  async function handleSaveEdit(id: string) {
-    setSaving(true)
-    const { error } = await updateLink(id, {
-      title: editTitle.trim(),
-      url: editUrl.trim(),
-    })
-    setSaving(false)
-    if (error) {
-      setError(error)
-    } else {
-      setEditingId(null)
-      router.refresh()
-    }
-  }
-
-  async function handleDelete(id: string) {
-    const { error } = await deleteLink(id)
-    if (error) {
-      setError(error)
-    } else {
-      router.refresh()
-    }
-  }
-
-  async function move(index: number, direction: 'up' | 'down') {
-    const next = direction === 'up' ? index - 1 : index + 1
-    if (next < 0 || next >= links.length) return
-
-    const reordered = [...links]
-    ;[reordered[index], reordered[next]] = [reordered[next]!, reordered[index]!]
-    setLinks(reordered)
-
-    await reorderLinks(reordered.map(l => l.id))
-    router.refresh()
   }
 
   return (
-    <div className="space-y-6">
-      {/* Link list */}
+    <div className="space-y-5">
+      <p className="text-xs text-zinc-500">
+        Fill in the platforms you use. Leave blank to hide. Drag to reorder.
+      </p>
+
       <div className="space-y-2">
-        {links.length === 0 && (
-          <p className="text-zinc-500 text-sm text-center py-6">No links yet.</p>
-        )}
-        {links.map((link, i) =>
-          editingId === link.id ? (
-            <div key={link.id} className="border border-zinc-700 rounded-lg p-3 space-y-2 bg-zinc-900">
-              <Input
-                value={editTitle}
-                onChange={e => setEditTitle(e.target.value)}
-                placeholder="Title"
-                className="bg-zinc-800 border-zinc-700 text-white"
-              />
-              <Input
-                value={editUrl}
-                onChange={e => setEditUrl(e.target.value)}
-                placeholder="https://…"
-                className="bg-zinc-800 border-zinc-700 text-white"
-              />
-              <div className="flex gap-2">
-                <Button size="sm" onClick={() => handleSaveEdit(link.id)} disabled={saving}>
-                  Save
-                </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setEditingId(null)}
-                  className="text-zinc-400"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          ) : (
+        {order.map(id => {
+          const platform = PLATFORMS.find(p => p.id === id)
+          if (!platform) return null
+          const hasFill = !!urls[id]?.trim()
+
+          return (
             <div
-              key={link.id}
-              className="flex items-center gap-2 p-3 rounded-lg bg-zinc-900 border border-zinc-800"
+              key={id}
+              draggable={hasFill}
+              onDragStart={() => hasFill && onDragStart(id)}
+              onDragOver={e => onDragOver(e, id)}
+              onDrop={onDrop}
+              className={`flex items-center gap-3 p-2.5 rounded-lg border transition ${
+                hasFill
+                  ? 'border-zinc-700 bg-zinc-900 cursor-grab active:cursor-grabbing'
+                  : 'border-zinc-800 bg-zinc-900/50'
+              }`}
             >
-              {/* Reorder */}
-              <div className="flex flex-col gap-0.5">
-                <button
-                  onClick={() => move(i, 'up')}
-                  disabled={i === 0}
-                  className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 leading-none text-xs"
-                >
-                  ▲
-                </button>
-                <button
-                  onClick={() => move(i, 'down')}
-                  disabled={i === links.length - 1}
-                  className="text-zinc-600 hover:text-zinc-300 disabled:opacity-20 leading-none text-xs"
-                >
-                  ▼
-                </button>
-              </div>
+              {/* Drag handle - only for filled platforms */}
+              <span className={`text-xs select-none shrink-0 w-3 ${hasFill ? 'text-zinc-600' : 'text-transparent'}`}>
+                ⠿
+              </span>
 
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-white truncate">{link.title}</p>
-                <p className="text-xs text-zinc-500 truncate">{link.url}</p>
-              </div>
+              <span className="text-sm text-zinc-400 w-28 shrink-0">{platform.label}</span>
 
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => startEdit(link)}
-                  className="p-1.5 text-xs text-zinc-500 hover:text-zinc-200 transition"
-                >
-                  Edit
-                </button>
-                <button
-                  onClick={() => handleDelete(link.id)}
-                  className="p-1.5 text-xs text-zinc-600 hover:text-red-400 transition"
-                >
-                  ✕
-                </button>
-              </div>
+              <Input
+                value={urls[id] ?? ''}
+                onChange={e => setUrl(id, e.target.value)}
+                placeholder="https://…"
+                type="url"
+                className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-600 text-sm h-7 flex-1"
+              />
             </div>
           )
-        )}
+        })}
       </div>
 
       {error && <p className="text-sm text-red-400">{error}</p>}
 
-      {/* Add form */}
-      <form onSubmit={handleAdd} className="border border-zinc-800 rounded-lg p-4 space-y-3 bg-zinc-900">
-        <p className="text-sm text-zinc-400 font-medium">Add a link</p>
-        <div className="space-y-2">
-          <Label className="text-zinc-300 text-xs">Title</Label>
-          <Input
-            value={newTitle}
-            onChange={e => setNewTitle(e.target.value)}
-            placeholder="Spotify"
-            required
-            className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
-          />
-        </div>
-        <div className="space-y-2">
-          <Label className="text-zinc-300 text-xs">URL</Label>
-          <Input
-            value={newUrl}
-            onChange={e => setNewUrl(e.target.value)}
-            placeholder="https://open.spotify.com/…"
-            type="url"
-            required
-            className="bg-zinc-800 border-zinc-700 text-white placeholder:text-zinc-500"
-          />
-        </div>
-        <Button type="submit" size="sm" disabled={saving} className="w-full">
-          Add link
-        </Button>
-      </form>
+      <Button size="sm" onClick={handleSave} disabled={saving}>
+        {saving ? 'Saving…' : saved ? 'Saved!' : 'Save links'}
+      </Button>
     </div>
   )
 }

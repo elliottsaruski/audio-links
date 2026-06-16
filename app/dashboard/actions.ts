@@ -203,6 +203,34 @@ export async function reorderLinks(ids: string[]): Promise<{ error?: string }> {
   return {}
 }
 
+export async function saveLinks(
+  platforms: Array<{ platform: string; url: string; sort_order: number }>
+): Promise<{ error?: string }> {
+  const { supabase, user } = await getUser()
+  if (!user) return { error: 'Not authenticated.' }
+
+  const { error: deleteError } = await supabase
+    .from('links')
+    .delete()
+    .eq('user_id', user.id)
+  if (deleteError) return { error: deleteError.message }
+
+  if (platforms.length > 0) {
+    const { error: insertError } = await supabase.from('links').insert(
+      platforms.map(p => ({
+        user_id: user.id,
+        title: p.platform,
+        url: p.url,
+        sort_order: p.sort_order,
+      }))
+    )
+    if (insertError) return { error: insertError.message }
+  }
+
+  revalidatePath('/dashboard')
+  return {}
+}
+
 // ── Releases ─────────────────────────────────────────────────────────────────
 
 export async function addRelease(data: {
